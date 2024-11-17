@@ -1,0 +1,4 @@
+flet-desktop-light
+pre-commit
+# pyright
+# python-lsp-server
