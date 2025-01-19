@@ -1,4 +1,8 @@
-flet-desktop-light
+# flet-desktop-light
+flet[all]
+h5py
+matplotlib
+numpy
 pre-commit
 # pyright
 # python-lsp-server
