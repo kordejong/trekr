@@ -7,7 +7,7 @@ class DatasetDrawerDestination(ft.NavigationDrawerDestination):
     def __init__(self, dataset: Dataset):
         super().__init__()
 
-        self.label=f"{dataset.kind}\n{dataset.variant}"
+        self.label=f"{dataset.kind}"  # \n{dataset.variant}"
         # icon=ft.Icons.DOOR_BACK_DOOR_OUTLINED
         # selected_icon=ft.Icon(ft.Icons.DOOR_BACK_DOOR)
 

@@ -1,4 +1,4 @@
 __version__: int = 1
 
-from .flet import *
+from .control import *
 from .io import *

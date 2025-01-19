@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from .dataset import Dataset, initialize_dataset, clear_dataset
+from .dataset import Dataset, initialize_dataset, clear_dataset, contains_dataset
 from .. import __version__
 
 
@@ -38,7 +38,10 @@ class Database(object):
         # spaces and dashes replaced by underscores, etc. The name doesn't matter. All relevant info is ready
         # from the dataset itself.
 
-        self.datasets: list[Dataset] = [Dataset(path) for path in self.path.glob("*-*.trekr")]
+        # self.datasets: list[Dataset] = [Dataset(path) for path in self.path.glob("*-*.trekr")]
+
+        self.datasets: list[Dataset] = [Dataset(path) for path in self.path.glob("*") if contains_dataset(path)]
+
 
     @property
     def version(self):
@@ -172,7 +175,7 @@ def remove_database(prefix: Path) -> None:
     database = Database(prefix)
 
     for dataset in database.datasets:
-        dataset.path.unlink()
+        database.remove_dataset(dataset.kind)
 
     del database
 

@@ -20,10 +20,9 @@ def create_dummy_databases():
     database = trekr.add_database(owncloud_prefix)
     databases.append(database)
     kind = "bike ride"
-    variant = "Gazelle Paris"
-    description = "My bike rides with my Gazelle Paris"
+    # variant = "Gazelle Paris"
     unit = "km"
-    dataset = database.add_dataset(kind, variant=variant, description=description, unit=unit)
+    dataset = database.add_dataset(kind, unit=unit)
 
     icloud_prefix = tmp_path.joinpath("icloud", "trekr")
 
@@ -32,11 +31,10 @@ def create_dummy_databases():
 
     database = trekr.add_database(icloud_prefix)
     databases.append(database)
-    kind = "bike ride"
-    variant = "idWorkx oPinion"
-    description = "My bike rides with my idWorkx oPinion"
+    kind = "hike"
+    # variant = "idWorkx oPinion"
     unit = "km"
-    dataset = database.add_dataset(kind, variant=variant, description=description, unit=unit)
+    dataset = database.add_dataset(kind, unit=unit)
 
     local_prefix = tmp_path.joinpath("local", "trekr")
 
@@ -46,10 +44,9 @@ def create_dummy_databases():
     database = trekr.add_database(local_prefix)
     databases.append(database)
     kind = "weight"
-    variant = "body"
-    description = "My body weight"
+    # variant = "body"
     unit = "kg"
-    dataset = database.add_dataset(kind, variant=variant, description=description, unit=unit)
+    dataset = database.add_dataset(kind, unit=unit)
 
 
 def main(page: ft.Page):

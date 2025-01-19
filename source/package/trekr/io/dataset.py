@@ -90,7 +90,11 @@ class Dataset(object):
                 FROM magnitudes
                 INNER JOIN variants USING (variant_id)
             """)
-            time_points, variants, magnitudes = tuple(map(list, zip(*results.fetchall())))
+
+            if records := results.fetchall():
+                time_points, variants, magnitudes = tuple(map(list, zip(*records)))
+            else:
+                time_points, variants, magnitudes = [], [], []
 
         return time_points, variants, magnitudes
 
@@ -134,3 +138,7 @@ def clear_dataset(path: Path) -> None:
 
     meta_path(path).unlink()
     record_path(path).unlink()
+
+
+def contains_dataset(path: Path) -> bool:
+    return path.is_dir() and meta_path(path).exists() and record_path(path).exists()

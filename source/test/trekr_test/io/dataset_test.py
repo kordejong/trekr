@@ -15,6 +15,12 @@ class DatasetTest(unittest.TestCase):
             kind = "bike ride"
             unit = "km"
             dataset = database.add_dataset(kind, unit=unit)
+
+            time_points_read, variants_read, distances_read = dataset.read()
+            self.assertEqual(time_points_read, [])
+            self.assertEqual(variants_read, [])
+            self.assertEqual(distances_read, [])
+
             now = datetime.datetime.now(datetime.timezone.utc)
 
             time_point_written = datetime.datetime(now.year, now.month, now.day, now.hour, now.minute)

@@ -20,6 +20,12 @@ class TimePointCell(ft.DataCell):
     #     # )
 
 
+class VariantCell(ft.DataCell):
+
+    def __init__(self, variant, *args, **kwargs):
+        super().__init__(ft.Text(f"{variant}"), *args, **kwargs)
+
+
 class MagnitudeCell(ft.DataCell):
 
     def __init__(self, magnitude, *args, **kwargs):
@@ -44,6 +50,7 @@ class DatasetTable(ft.DataTable):
 
         columns = [
             ft.DataColumn(ft.Text("Date")),
+            ft.DataColumn(ft.Text("Variant")),
             ft.DataColumn(ft.Text("Magnitude"), numeric=True),
         ]
 
@@ -55,13 +62,14 @@ class DatasetTable(ft.DataTable):
 
 
     def recreate_table(self):
-        time_points, magnitudes = self.dataset.read()
+        time_points, variants, magnitudes = self.dataset.read()
         self.rows = [
             ft.DataRow(
                 cells=[
                     TimePointCell(time_point),
+                    VariantCell(time_point),
                     MagnitudeCell(magnitude),
-                ]) for time_point, magnitude in zip(time_points, magnitudes)
+                ]) for time_point, variant, magnitude in zip(time_points, variants, magnitudes)
         ]
 
 

@@ -20,7 +20,9 @@ class DatasetPlot(MatplotlibChart):
 
 
     def recreate_plot(self):
-        time_points, magnitudes = self.dataset.read()
+        time_points, variants, magnitudes = self.dataset.read()
+
+        # TODO Group by variant
         self.axes.plot(time_points, magnitudes)
 
 
