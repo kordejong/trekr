@@ -7,89 +7,144 @@ from trekr import io
 
 
 class DatabaseTest(unittest.TestCase):
-
     def validate_newly_added_database(self, database):
         self.assertEqual(database.version, __version__)
-        self.assertEqual(len(database.datasets), 0)
 
     def test_add_database_non_existing_directory(self):
-        with tempfile.TemporaryDirectory() as directory_pathname:
-            prefix = Path(directory_pathname).joinpath("meh")
-            database = io.add_database(prefix)
-            self.validate_newly_added_database(database)
+        with self.assertRaisesRegex(RuntimeError, "parent directory"):
+            with tempfile.TemporaryDirectory() as directory_pathname:
+                database_path = Path(directory_pathname).joinpath(
+                    "doesnotexist", "my_database.sqlite3"
+                )
+                assert not database_path.parent.exists(), database_path.parent
+                io.add_database(database_path)
 
     def test_add_database_existing_empty_directory(self):
         with tempfile.TemporaryDirectory() as directory_pathname:
-            prefix = Path(directory_pathname)
-            database = io.add_database(prefix)
+            database_path = Path(directory_pathname).joinpath("my_database.sqlite3")
+            database = io.add_database(database_path)
             self.validate_newly_added_database(database)
 
-    def test_add_database_non_existing_parent_directory(self):
-        with self.assertRaisesRegex(FileNotFoundError, "No such file or directory"):
-            with tempfile.TemporaryDirectory() as directory_pathname:
-                prefix = Path(directory_pathname).joinpath("meh", "mah")
-                io.add_database(prefix)
-
-    def test_add_database_existing_non_empty_directory(self):
-        with self.assertRaisesRegex(RuntimeError, "exists and is not empty"):
-            with tempfile.TemporaryDirectory() as directory_pathname:
-                prefix = Path(directory_pathname)
-                prefix.joinpath("mah").touch()
-                io.add_database(prefix)
-
     def test_add_database_existing_file(self):
-        with self.assertRaisesRegex(RuntimeError, "a regular file with name"):
+        with self.assertRaisesRegex(RuntimeError, "a file with name"):
             with tempfile.NamedTemporaryFile(delete_on_close=False) as fp:
                 fp.close()
-                prefix = Path(fp.name)
-                io.add_database(prefix)
+                database_path = Path(fp.name)
+                io.add_database(database_path)
 
     def test_remove_database(self):
         with tempfile.TemporaryDirectory() as directory_pathname:
-            prefix = Path(directory_pathname).joinpath("meh")
-            io.add_database(prefix)
-            self.assertTrue(io.database_exists(prefix))
-            io.remove_database(prefix)
-            self.assertFalse(io.database_exists(prefix))
-            self.assertFalse(prefix.exists())
+            path = Path(directory_pathname).joinpath("my_database.sqlite3")
+            io.add_database(path)
+            self.assertTrue(io.database_exists(path))
+            io.remove_database(path)
+            self.assertFalse(io.database_exists(path))
+            self.assertFalse(path.exists())
 
-    def test_remove_database_lingering_file(self):
+    def test_define_quantity(self):
         with tempfile.TemporaryDirectory() as directory_pathname:
-            prefix = Path(directory_pathname).joinpath("meh")
-            io.add_database(prefix)
-            prefix.joinpath("mah").touch()  # Add a file
-            io.remove_database(prefix)
-            self.assertFalse(io.database_exists(prefix))
-            self.assertTrue(prefix.exists())
-            prefix.joinpath("mah").is_file()  # File still exists
+            path = Path(directory_pathname).joinpath("my_database.sqlite3")
+            io.add_database(path)
+            # TODO hier verder. Voorbeelden voor tijd, afstand, ...
 
-    def test_add_dataset(self):
-        with tempfile.TemporaryDirectory() as directory_pathname:
-            prefix = Path(directory_pathname)
-            database = io.add_database(prefix)
-            kind = "bike ride"
-            unit = "km"
-            self.assertFalse(database.dataset_exists(kind))
-            dataset = database.add_dataset(kind, unit=unit)
-            self.assertTrue(database.dataset_exists(kind))
-            self.assertEqual(dataset.kind, kind)
-            self.assertEqual(dataset.unit, unit)
+    # Test adding some information:
+    # - Foreign key constraint (kind that doesn't exist for example)
 
-    def test_remove_existing_dataset(self):
-        with tempfile.TemporaryDirectory() as directory_pathname:
-            prefix = Path(directory_pathname)
-            database = io.add_database(prefix)
-            kind = "bike ride"
-            unit = "km"
-            database.add_dataset(kind, unit=unit)
-            self.assertTrue(database.dataset_exists(kind))
-            database.remove_dataset(kind)
-            self.assertFalse(database.dataset_exists(kind))
+    # context
+    # - client/project(/sub_project)
+    # - person/body(/weight)
+    # - bike(/brand)
+    # - shoe(/brand)
 
-    def test_remove_non_existing_dataset(self):
-        with tempfile.TemporaryDirectory() as directory_pathname:
-            prefix = Path(directory_pathname)
-            database = io.add_database(prefix)
-            kind = "bike ride"
-            with self.assertRaisesRegex(RuntimeError, "a dataset for kind"):
-                database.remove_dataset(kind)
+    # property
+    # - sub_project (time/hours)
+    # - weight (mass/kg)
+    # - brand (distance/km)
+
+    # quantity
+    # - mass, time, distance, heat, angle
+
+    # unit of measurement
+    # - kg, seconds, meter, degrees Celsius, degrees
+
+    # With the context, sub-contexts can be created/used, but these must all have the same quantity
+    # - Context is the toplevel organizing structure, below which a sub-context hierarchy of properties can be
+    #   stored
+    #   - context:
+    #     - client/project/time → (time/hours)
+    #     - client/project/invoice → (money/euros)
+    #   - property:
+    #     - sub_project1/sub_project2
+
+    # QUANTITY
+    # - What do you want to trek (quantity)?
+    #   → quantity: time
+    # - What unit of measurement do you want to use for "time"?
+    #   → unit: hours (pint package)
+    # - How do you want to refer to this time quantity (what is its name)?
+    #   → name: timesheet
+    # - How would you describe timesheet (can be changed later)?
+    #   → description: Number of hours worked on (sub-)projects
+
+    # Adding records involves:
+    # - Pick a quantity to add to
+    # - Pick a context
+    #   - A context is a path, e.g.: <client>/<sub_project1>/<sub_project2>
+    #   - A context must have a unique ID. Use this ID as the node in the networkx tree.
+    #   - A context can be partial. Its path does not have to contain a leaf node.
+    #   - It must be possible to select one of the existing ones (from a tree visualization?)
+    #   - It must be possible to add these on the fly, by typing a path (or by adding branches to the tree
+    #     vis?)
+    #   - It must be possible to rename contexts (by editing the tree vis?)
+    # - Pick a date
+    # - Enter a value (floating point)
+
+    # Each context is part of a tree (arborescence in networkx-speak)
+    # Each tree is associated with a quantity
+    # Contexts together form a forest (branching in networkx-speak). This may not be useful. Keep each context
+    # tree as its own thing, linked to a quantity. Each context tree stores values for the same quantity. Each
+    # value is associated with a path into this tree.
+
+    # context: time
+    # property: <client>/<project>
+
+    # https://en.wikipedia.org/wiki/Quantity
+    # Add:
+    # - quantity:
+    #     - amount of something
+    #     - property that can exist as a multitude or magnitude
+    #     - example of quantitive properties:
+    #       - mass, time, distance, heat, angle
+    # - unit of measurement
+    #     - magnitude of a quantity
+
+    # def test_add_dataset(self):
+    #     with tempfile.TemporaryDirectory() as directory_pathname:
+    #         prefix = Path(directory_pathname)
+    #         database = io.add_database(prefix)
+    #         kind = "bike ride"
+    #         unit = "km"
+    #         self.assertFalse(database.dataset_exists(kind))
+    #         dataset = database.add_dataset(kind, unit=unit)
+    #         self.assertTrue(database.dataset_exists(kind))
+    #         self.assertEqual(dataset.kind, kind)
+    #         self.assertEqual(dataset.unit, unit)
+    #
+    # def test_remove_existing_dataset(self):
+    #     with tempfile.TemporaryDirectory() as directory_pathname:
+    #         prefix = Path(directory_pathname)
+    #         database = io.add_database(prefix)
+    #         kind = "bike ride"
+    #         unit = "km"
+    #         database.add_dataset(kind, unit=unit)
+    #         self.assertTrue(database.dataset_exists(kind))
+    #         database.remove_dataset(kind)
+    #         self.assertFalse(database.dataset_exists(kind))
+    #
+    # def test_remove_non_existing_dataset(self):
+    #     with tempfile.TemporaryDirectory() as directory_pathname:
+    #         prefix = Path(directory_pathname)
+    #         database = io.add_database(prefix)
+    #         kind = "bike ride"
+    #         with self.assertRaisesRegex(RuntimeError, "a dataset for kind"):
+    #             database.remove_dataset(kind)
