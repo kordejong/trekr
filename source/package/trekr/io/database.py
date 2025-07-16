@@ -1,7 +1,8 @@
 import datetime
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import sqlite3
+import networkx as nx
 
 # from .dataset import Dataset, initialize_dataset, clear_dataset, contains_dataset
 from .. import __version__
@@ -39,6 +40,18 @@ def table_exists(cursor: sqlite3.Cursor, name: str) -> bool:
     return len(results.fetchall()) == 1
 
 
+def context_from_string(context: nx.DiGraph) -> str:
+    context_as_dict = nx.to_dict_of_dicts(context)
+
+    return json.dumps(context_as_dict)
+
+
+def context_to_string(context_as_string: str) -> nx.DiGraph:
+    context_as_dict = json.loads(context_as_string)
+
+    return nx.from_dict_of_dicts(context_as_dict)
+
+
 class Database(object):
     # Class for representing the current version of the database. Old versions first need to be upgraded.
 
@@ -49,9 +62,12 @@ class Database(object):
             cursor = connection.cursor()
 
             assert table_exists(cursor, name="trekr")
-            # assert table_exists(cursor, name="property_kind")
-            # assert table_exists(cursor, name="property")
-            # assert table_exists(cursor, name="magnitude")
+            assert table_exists(cursor, name="trekr_quantity")
+            assert table_exists(cursor, name="trekr_unit")
+            assert table_exists(cursor, name="trekr_quantity_unit")
+            assert table_exists(cursor, name="quantity")
+            assert table_exists(cursor, name="segment")
+            assert table_exists(cursor, name="value")
 
             results = cursor.execute("""
                 SELECT property, value from trekr WHERE property='version'
@@ -67,6 +83,80 @@ class Database(object):
     @property
     def version(self):
         return self._version
+
+    def trekr_quantity_id(self, cursor: sqlite3.Cursor, name: str) -> int:
+        results = cursor.execute(f"""
+            SELECT id FROM trekr_quantity WHERE name='{name}'
+        """).fetchall()
+        assert len(results) == 1, results
+        return results[0][0]
+
+    def trekr_unit_id(self, cursor: sqlite3.Cursor, name: str) -> int:
+        results = cursor.execute(f"""
+            SELECT id FROM trekr_unit WHERE name='{name}'
+        """).fetchall()
+        assert len(results) == 1, results
+        return results[0][0]
+
+    def quantity_id(
+        self, cursor: sqlite3.Cursor, quantity_id: int, unit_id: int, name: str
+    ) -> int:
+        results = cursor.execute(f"""
+            SELECT id FROM quantity WHERE quantity_id={quantity_id} AND unit_id={unit_id} AND name='{name}'
+        """).fetchall()
+        assert len(results) == 1, results
+        return results[0][0]
+
+    def add_quantity(
+        self,
+        quantity: str,
+        unit: str,
+        name: str,
+        description: str,
+        context: nx.DiGraph,
+    ) -> None:
+        context_as_string = context_from_string(context)
+
+        with sqlite3.connect(self.path) as connection:
+            cursor = connection.cursor()
+            quantity_id = self.trekr_quantity_id(cursor, quantity)
+            unit_id = self.trekr_unit_id(cursor, unit)
+            cursor.execute(f"""
+                INSERT INTO quantity (quantity_id, unit_id, name, description, context)
+                VALUES ({quantity_id}, {unit_id}, '{name}', '{description}', '{context_as_string}')
+            """)
+            quantity_id = self.quantity_id(cursor, quantity_id, unit_id, name)
+
+        return quantity_id
+
+    def add_value(
+        self,
+        quantity_id: int,
+        context_path: PurePosixPath,
+        date: datetime.datetime,
+        value: float,
+    ) -> None:
+        # - Given the quantity_id, obtain the context tree. The context tree is a tree of unique IDs.
+        # - The context_path passed in contains names, which can be translated to a path of unique IDs, using
+        #   the context table. For any context segment in the context_path which cannot be found in the
+        #   context table, a unique ID has to be determined which has to be added to the context tree and the
+        #   context table.
+        # - Given the quantity_id, and the ID of the last node of the context_path, add a record to the value
+        #   table
+        # TODO: Implement
+        assert not context_path.is_absolute(), context_path
+
+        # context_tree = self.context_tree(quantity_id)
+        # context_segments = self.context_segments(quantity_id)
+        # segment_names = context_path.parts
+
+        # Annotate context_tree of node IDs with node names, given information from context_segments
+        # Determine which part of context_path, if any, is not present in the context tree
+        # Add missing segments to the tree node IDs and node names. Write updated tree to quantity table.
+        # Write new segment IDs and names to segment table.
+        # Add record for quantity_id, node segment ID, date and value to value table
+
+        pass
 
     # def dataset_idx(self, kind: str) -> int:
     #     result = -1
@@ -250,34 +340,42 @@ def initialize_database(path: Path) -> None:
         # quantity: | quantity_id | unit_id | name | description | context |
         cursor.execute("""
             CREATE TABLE quantity(
+                id INTEGER PRIMARY KEY,
                 quantity_id INTEGER,
                 unit_id INTEGER,
                 name TEXT NOT NULL,
                 description TEXT,
                 context TEXT,
-                PRIMARY KEY (quantity_id, unit_id, name),
+                UNIQUE (quantity_id, unit_id, name),
                 FOREIGN KEY (quantity_id) REFERENCES trekr_quantity (id),
                 FOREIGN KEY (unit_id) REFERENCES trekr_unit (id)
             )
         """)
 
-        # User table for storing information about trekked contexts
-        # context: | context_id | name |
+        # User table for storing information about trekked contexts. A context tree is associated with a
+        # quantity. Within the tree, nodes are represented by unique IDs. Between trees, node IDs don't
+        # have to be unique.
+        # segment: | quantity_id | segment_id | name |
         cursor.execute("""
-            CREATE TABLE context(
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL
+            CREATE TABLE segment(
+                quantity_id INTEGER NOT NULL,
+                segment_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                PRIMARY KEY (quantity_id, segment_id),
+                FOREIGN KEY (quantity_id) REFERENCES quantity (id)
             )
         """)
 
-        # value: | quantity_id | context_id | date | value |
+        # value: | quantity_id | segment_id | date | value |
         cursor.execute("""
             CREATE TABLE value(
-                quantity_id INTEGER,
-                context_id INTEGER,
+                quantity_id INTEGER NOT NULL,
+                segment_id INTEGER NOT NULL,
                 date datetime NOT NULL,
                 value REAL NOT NULL,
-                FOREIGN KEY (context_id) REFERENCES context (id)
+                PRIMARY KEY (quantity_id, segment_id),
+                FOREIGN KEY (quantity_id) REFERENCES quentity (id),
+                FOREIGN KEY (segment_id) REFERENCES context (id)
             )
         """)
 

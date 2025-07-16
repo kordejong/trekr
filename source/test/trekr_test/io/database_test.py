@@ -1,6 +1,9 @@
-from pathlib import Path
+import datetime
+from pathlib import Path, PurePosixPath
 import tempfile
 import unittest
+
+import networkx as nx
 
 from trekr import __version__
 from trekr import io
@@ -44,8 +47,22 @@ class DatabaseTest(unittest.TestCase):
     def test_define_quantity(self):
         with tempfile.TemporaryDirectory() as directory_pathname:
             path = Path(directory_pathname).joinpath("my_database.sqlite3")
-            io.add_database(path)
-            # TODO hier verder. Voorbeelden voor tijd, afstand, ...
+            database = io.add_database(path)
+
+            # Timesheet
+            quantity_id = database.add_quantity(
+                quantity="time",
+                unit="hour",
+                name="timesheet",
+                description="My timesheet",
+                context=nx.DiGraph(),
+            )
+            database.add_value(
+                quantity_id=quantity_id,
+                context_path=PurePosixPath("a/b/c"),
+                date=datetime.datetime.now(),
+                value=5.5,
+            )
 
     # Test adding some information:
     # - Foreign key constraint (kind that doesn't exist for example)
